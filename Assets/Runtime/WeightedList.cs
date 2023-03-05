@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine;
+using Random = System.Random;
 
 public class WeightedList<T> where T : IComparable<T>
 {
-    private Random _random;
+    private readonly Random _random;
     private readonly List<Entry<T>> _list;
-    private bool _needUpdateWeights;
+    private double _totalWeight;
+    private bool _needUpdateWeights;    
 
     public WeightedList(int seed = 0)
     {
@@ -27,6 +30,7 @@ public class WeightedList<T> where T : IComparable<T>
             initialWeight = weight
         });
         _needUpdateWeights = true;
+        _totalWeight += weight;
     }
 
     public void UpdateWeight(T value, double weight)
@@ -39,18 +43,35 @@ public class WeightedList<T> where T : IComparable<T>
             }
             
             var entry = _list[i];
+            _totalWeight -= entry.initialWeight;
+            
             entry.initialWeight = weight;
             _list[i] = entry;
             _needUpdateWeights = true;
+            _totalWeight += weight;
         }
     }
 
     public T GetRandomElement()
     {
         RecalculateWeights();
-        var randomValue = _random.NextDouble();
-        var index = FindIndex(randomValue);
-        return _list[index - 1].value;
+        var index = FindIndex(GetRandomWeight());
+        return _list[index].value;
+    }
+
+    public T GetRandomElementAndRemove()
+    {
+        RecalculateWeights();
+        var index = FindIndex(GetRandomWeight());
+        var element = _list[index].value;
+        _list.RemoveAt(index);
+        _needUpdateWeights = true;
+        return element;
+    }
+
+    private double GetRandomWeight()
+    {
+        return _random.NextDouble() * _totalWeight;
     }
 
     private int FindIndex(double value)
@@ -75,7 +96,7 @@ public class WeightedList<T> where T : IComparable<T>
             }
         }
 
-        return left;
+        return left - 1;
     }
 
     public void RecalculateWeights()
@@ -84,10 +105,9 @@ public class WeightedList<T> where T : IComparable<T>
         {
             return;
         }
-        
+
         _list.Sort((lhs, rhs) => lhs.initialWeight.CompareTo(rhs.initialWeight));
-        
-        var total = CalculateTotalWeight();
+
         var current = 0.0;
         for (var i = 0; i < _list.Count; i++)
         {
@@ -95,19 +115,9 @@ public class WeightedList<T> where T : IComparable<T>
             entry.currentWeight = current;
             _list[i] = entry;
 
-            current += entry.initialWeight / total;
+            current += entry.initialWeight;
         }
 
         _needUpdateWeights = false;
-    }
-
-    private double CalculateTotalWeight()
-    {
-        var result = 0.0;
-        for (var i = 0; i < _list.Count; i++)
-        {
-            result += _list[i].initialWeight;
-        }
-        return result;
     }
 }
